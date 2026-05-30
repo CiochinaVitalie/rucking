@@ -23,14 +23,44 @@ static constexpr float A4988_TEST_SWEEP_DEG = 45.0f;
 static constexpr uint32_t A4988_TEST_STEP_PERIOD_US = 1200;
 static constexpr uint32_t A4988_TEST_SETTLE_MS = 500;
 
+static constexpr A4988StepperConfig PAN_CONFIG {
+    .full_steps_per_revolution = 200.0f,
+    .microstep_divider = 16.0f,
+    .gear_ratio = 1.0f,
+    .direction_inverted = false,
+    .enable_active_low = true,
+    .step_high_time_us = 3,
+    .min_step_period_us = 700,
+    .dir_setup_time_us = 3,
+    .dir_hold_time_us = 3,
+    .min_position_degrees = -180.0f,
+    .max_position_degrees = 180.0f,
+};
+
+static constexpr A4988StepperConfig TILT_CONFIG {
+    .full_steps_per_revolution = 200.0f,
+    .microstep_divider = 16.0f,
+    .gear_ratio = 1.0f,
+    .direction_inverted = false,
+    .enable_active_low = true,
+    .step_high_time_us = 3,
+    .min_step_period_us = 700,
+    .dir_setup_time_us = 3,
+    .dir_hold_time_us = 3,
+    .min_position_degrees = -90.0f,
+    .max_position_degrees = 90.0f,
+};
+
 static void log_stepper_state(const char* axis_name, const A4988Stepper& stepper)
 {
-    printf("%s state: cmd=%.3f deg actual=%.3f deg steps=%ld total=%lu\n",
+    printf("%s state: cmd=%.3f deg actual=%.3f deg steps=%ld total=%lu limits=[%.1f, %.1f]\n",
            axis_name,
            stepper.commanded_degrees(),
            stepper.actual_degrees(),
            stepper.current_steps(),
-           stepper.total_steps());
+           stepper.total_steps(),
+           stepper.config().min_position_degrees,
+           stepper.config().max_position_degrees);
 }
 
 static void run_a4988_axis_test(const char* axis_name,
@@ -67,8 +97,8 @@ int main()
     gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
     
-    A4988Stepper pan(PAN_STEP_PIN, PAN_DIR_PIN, PAN_ENABLE_PIN, 200.0f, 16.0f);
-    A4988Stepper tilt(TILT_STEP_PIN, TILT_DIR_PIN, TILT_ENABLE_PIN, 200.0f, 16.0f);
+    A4988Stepper pan(PAN_STEP_PIN, PAN_DIR_PIN, PAN_ENABLE_PIN, PAN_CONFIG);
+    A4988Stepper tilt(TILT_STEP_PIN, TILT_DIR_PIN, TILT_ENABLE_PIN, TILT_CONFIG);
 
     pan.init();
     tilt.init();
@@ -98,6 +128,11 @@ int main()
     printf("Step angle: PAN=%.4f deg/step  TILT=%.4f deg/step\n",
            pan.step_angle_degrees(),
            tilt.step_angle_degrees());
+    printf("Step timing: pulse=%lu us min_period=%lu us dir_setup=%lu us dir_hold=%lu us\n",
+           static_cast<unsigned long>(pan.config().step_high_time_us),
+           static_cast<unsigned long>(pan.config().min_step_period_us),
+           static_cast<unsigned long>(pan.config().dir_setup_time_us),
+           static_cast<unsigned long>(pan.config().dir_hold_time_us));
 
     run_a4988_driver_test(pan);
 }
