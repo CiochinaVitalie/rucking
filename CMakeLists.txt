@@ -33,14 +33,24 @@ project(rucking C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# Pull in the local ruckig library without building its examples/tests.
+# Pull in the vendored Ruckig library without building host-side extras.
+set(RUCKIG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rucking)
+if(NOT EXISTS ${RUCKIG_SOURCE_DIR}/CMakeLists.txt)
+    message(FATAL_ERROR
+        "Ruckig submodule not found at ${RUCKIG_SOURCE_DIR}. "
+        "Run: git submodule update --init --recursive")
+endif()
+
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_PYTHON_MODULE OFF CACHE BOOL "" FORCE)
 set(BUILD_CLOUD_CLIENT OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-add_subdirectory(ruckig EXCLUDE_FROM_ALL)
+add_subdirectory(
+        ${RUCKIG_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}/third_party/rucking
+        EXCLUDE_FROM_ALL)
 
 # Add executable. Default name is the project name, version 0.1
 

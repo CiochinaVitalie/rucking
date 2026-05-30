@@ -1,0 +1,3 @@
+[submodule "third_party/rucking"]
+	path = third_party/rucking
+	url = https://github.com/pantor/ruckig.git
