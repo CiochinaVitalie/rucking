@@ -28,12 +28,12 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(rucking C CXX ASM)
-
 # Prefer a debuggable local build unless the user selected a build type explicitly.
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
+
+project(rucking C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()

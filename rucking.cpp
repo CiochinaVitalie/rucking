@@ -6,41 +6,41 @@
 static constexpr uint PAN_STEP_PIN = 2;
 static constexpr uint PAN_DIR_PIN = 3;
 static constexpr uint PAN_ENABLE_PIN = 4;
+static constexpr int PAN_MS1_PIN = A4988_PIN_UNUSED;
+static constexpr int PAN_MS2_PIN = A4988_PIN_UNUSED;
+static constexpr int PAN_MS3_PIN = A4988_PIN_UNUSED;
+static constexpr uint32_t PAN_FULL_STEPS_PER_REVOLUTION = 4640;
+static constexpr float PAN_GEAR_RATIO = 1.0f;
+static constexpr A4988Microstep PAN_MICROSTEP = A4988Microstep::Full;
+static constexpr float PAN_TEST_DEGREES = 360.0f;
 
-static constexpr float A4988_TEST_ONE_REV_DEG = 360.0f;
-
-static constexpr A4988StepperConfig PAN_CONFIG {
-    .full_steps_per_revolution = 200.0f,
-    .microstep_divider = 16.0f,
-    .gear_ratio = 1.0f,
-    .direction_inverted = false,
-    .enable_active_low = true,
-    .step_high_time_us = 3,
-    .min_step_period_us = 700,
-    .min_position_degrees = -360.0f,
-    .max_position_degrees = 360.0f,
-};
-
-static void log_stepper_state(const char* axis_name, const A4988Stepper& stepper)
+static int32_t round_to_steps(float steps)
 {
-    printf("%s state: cmd=%.3f deg actual=%.3f deg steps=%ld total=%lu limits=[%.1f, %.1f]\n",
-           axis_name,
-           stepper.commanded_degrees(),
-           stepper.actual_degrees(),
-           stepper.current_steps(),
-           stepper.total_steps(),
-           stepper.config().min_position_degrees,
-           stepper.config().max_position_degrees);
+    return static_cast<int32_t>(steps >= 0.0f ? steps + 0.5f : steps - 0.5f);
+}
+
+static float output_steps_per_revolution(const A4988Stepper& stepper)
+{
+    const float motor_steps = static_cast<float>(
+        stepper.steps_per_motor_revolution(PAN_FULL_STEPS_PER_REVOLUTION));
+    return motor_steps * PAN_GEAR_RATIO;
+}
+
+static int32_t output_degrees_to_steps(const A4988Stepper& stepper, float degrees)
+{
+    return round_to_steps((output_steps_per_revolution(stepper) * degrees) / 360.0f);
+}
+
+static void move_output_degrees(A4988Stepper& stepper, float degrees)
+{
+    stepper.move_steps(output_degrees_to_steps(stepper, degrees));
 }
 
 static void run_a4988_driver_test(A4988Stepper& stepper)
 {
     printf("=== A4988 driver test start ===\n");
-    printf("This test rotates PAN by one full revolution and then idles.\n");
-    log_stepper_state("PAN", stepper);
-
-    stepper.move_relative_degrees(A4988_TEST_ONE_REV_DEG);
-    log_stepper_state("PAN", stepper);
+    printf("Rotating PAN output by %.3f degrees.\n", PAN_TEST_DEGREES);
+    move_output_degrees(stepper, PAN_TEST_DEGREES);
 
     while (true) {
         sleep_ms(1000);
@@ -51,17 +51,34 @@ int main()
 {
     stdio_init_all();
     
-    A4988Stepper pan(PAN_STEP_PIN, PAN_DIR_PIN, PAN_ENABLE_PIN, PAN_CONFIG);
+    A4988Stepper pan(
+        PAN_STEP_PIN,
+        PAN_DIR_PIN,
+        PAN_ENABLE_PIN,
+        PAN_MS1_PIN,
+        PAN_MS2_PIN,
+        PAN_MS3_PIN,
+        PAN_MICROSTEP);
 
     pan.init();
     pan.enable();
 
     printf("A4988 stepper driver test start\n");
     printf("PAN pins: STEP=%u DIR=%u EN=%u\n", PAN_STEP_PIN, PAN_DIR_PIN, PAN_ENABLE_PIN);
-    printf("Step angle: PAN=%.4f deg/step\n", pan.step_angle_degrees());
-    printf("Step timing: pulse=%lu us min_period=%lu us\n",
-           static_cast<unsigned long>(pan.config().step_high_time_us),
-           static_cast<unsigned long>(pan.config().min_step_period_us));
+    printf("PAN MS pins: MS1=%d MS2=%d MS3=%d\n", PAN_MS1_PIN, PAN_MS2_PIN, PAN_MS3_PIN);
+    printf("Microstep mode: 1/%lu\n", static_cast<unsigned long>(pan.microsteps()));
+    printf("Gear ratio: %.3f:1\n", PAN_GEAR_RATIO);
+    printf("Motor steps per revolution: %lu\n",
+           static_cast<unsigned long>(pan.steps_per_motor_revolution(PAN_FULL_STEPS_PER_REVOLUTION)));
+    printf("Output steps per revolution: %lu\n",
+           static_cast<unsigned long>(round_to_steps(output_steps_per_revolution(pan))));
+    printf("Output steps per degree: %.3f\n", output_steps_per_revolution(pan) / 360.0f);
+    printf("Test move: %.3f deg => %ld steps\n",
+           PAN_TEST_DEGREES,
+           static_cast<long>(output_degrees_to_steps(pan, PAN_TEST_DEGREES)));
+    printf("Step timing: pulse=%lu us period=%lu us\n",
+           static_cast<unsigned long>(A4988_STEP_HIGH_US),
+           static_cast<unsigned long>(A4988_STEP_PERIOD_US));
 
     run_a4988_driver_test(pan);
 }
