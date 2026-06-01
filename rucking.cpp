@@ -20,13 +20,14 @@ const uint UART_RX_PIN = 1;
 const uint BAUD_RATE = 115200;
 
 static constexpr float A4988_TEST_SWEEP_DEG = 45.0f;
-static constexpr uint32_t A4988_TEST_STEP_PERIOD_US = 1200;
+static constexpr uint32_t A4988_TEST_STEP_PERIOD_US = 700;
 static constexpr uint32_t A4988_TEST_SETTLE_MS = 500;
+static constexpr float A4988_TEST_ONE_REV_DEG = 360.0f;
 
 static constexpr A4988StepperConfig PAN_CONFIG {
-    .full_steps_per_revolution = 200.0f,
+    .full_steps_per_revolution = 4640.0f,
     .microstep_divider = 16.0f,
-    .gear_ratio = 1.0f,
+    .gear_ratio = 232.0f,
     .direction_inverted = false,
     .enable_active_low = true,
     .step_high_time_us = 3,
@@ -78,14 +79,14 @@ static void run_a4988_axis_test(const char* axis_name,
 static void run_a4988_driver_test(A4988Stepper& pan)
 {
     printf("=== A4988 driver test start ===\n");
-    printf("This test rotates PAN continuously in one direction.\n");
-    run_a4988_axis_test("PAN", pan, A4988_TEST_SWEEP_DEG, A4988_TEST_STEP_PERIOD_US);
+    printf("This test rotates PAN by one full revolution and stops.\n");
+    run_a4988_axis_test("PAN", pan, A4988_TEST_ONE_REV_DEG, A4988_TEST_STEP_PERIOD_US);
+
+    pan.move_relative_degrees_unclamped(A4988_TEST_ONE_REV_DEG, A4988_TEST_STEP_PERIOD_US);
+    log_stepper_state("PAN", pan);
 
     while (true) {
-        pan.move_relative_degrees(A4988_TEST_SWEEP_DEG, A4988_TEST_STEP_PERIOD_US);
-
-        log_stepper_state("PAN", pan);
-        sleep_ms(A4988_TEST_SETTLE_MS);
+        sleep_ms(1000);
     }
 }
 

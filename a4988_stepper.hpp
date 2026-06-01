@@ -77,6 +77,12 @@ public:
         commanded_degrees_ = target_degrees;
     }
 
+    void move_relative_degrees_unclamped(float delta_degrees, uint32_t step_period_us = 0) {
+        const long steps = degrees_to_steps(delta_degrees);
+        move_relative_steps(steps, step_period_us);
+        commanded_degrees_ += delta_degrees;
+    }
+
     void move_absolute_degrees(float target_degrees, uint32_t step_period_us = 0) {
         move_relative_degrees(target_degrees - commanded_degrees_, step_period_us);
     }
