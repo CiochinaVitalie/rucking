@@ -15,8 +15,6 @@ struct A4988StepperConfig {
 
     uint32_t step_high_time_us {3};
     uint32_t min_step_period_us {700};
-    uint32_t dir_setup_time_us {3};
-    uint32_t dir_hold_time_us {3};
 
     float min_position_degrees {-360.0f};
     float max_position_degrees {360.0f};
@@ -66,7 +64,7 @@ public:
     }
 
     long degrees_to_steps(float degrees) const {
-        const float steps_per_degree = mechanical_steps_per_revolution() / 360.0f;
+        const float steps_per_degree = (config_.full_steps_per_revolution * config_.microstep_divider * config_.gear_ratio)/ 360.0f;
         return lroundf(degrees * steps_per_degree);
     }
 
@@ -75,12 +73,6 @@ public:
         const long steps = degrees_to_steps(target_degrees - commanded_degrees_);
         move_relative_steps(steps, step_period_us);
         commanded_degrees_ = target_degrees;
-    }
-
-    void move_relative_degrees_unclamped(float delta_degrees, uint32_t step_period_us = 0) {
-        const long steps = degrees_to_steps(delta_degrees);
-        move_relative_steps(steps, step_period_us);
-        commanded_degrees_ += delta_degrees;
     }
 
     void move_absolute_degrees(float target_degrees, uint32_t step_period_us = 0) {
@@ -112,7 +104,7 @@ public:
     }
 
     float steps_to_degrees(long steps) const {
-        const float steps_per_degree = mechanical_steps_per_revolution() / 360.0f;
+        const float steps_per_degree = (config_.full_steps_per_revolution * config_.microstep_divider * config_.gear_ratio) / 360.0f;
         return static_cast<float>(steps) / steps_per_degree;
     }
 
@@ -134,10 +126,6 @@ private:
             config_.max_position_degrees);
     }
 
-    float mechanical_steps_per_revolution() const {
-        return config_.full_steps_per_revolution * config_.microstep_divider * config_.gear_ratio;
-    }
-
     void move_relative_steps(long steps, uint32_t step_period_us) {
         if (steps == 0) {
             return;
@@ -151,13 +139,11 @@ private:
             : 0;
 
         set_direction(steps > 0);
-        sleep_us(config_.dir_setup_time_us);
 
         const unsigned long count = static_cast<unsigned long>(steps > 0 ? steps : -steps);
         for (unsigned long i = 0; i < count; ++i) {
             step_pulse(config_.step_high_time_us, low_time_us);
         }
-        sleep_us(config_.dir_hold_time_us);
 
         current_steps_ += steps;
         total_steps_ += count;

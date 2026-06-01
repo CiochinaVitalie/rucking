@@ -1,44 +1,15 @@
 #include <stdio.h>
 
-#include "pico/stdlib.h"
 #include "a4988_stepper.hpp"
-#include <ruckig/ruckig.hpp>
-#include "hardware/uart.h"
-
-using namespace ruckig;
+#include "pico/stdlib.h"
 
 static constexpr uint PAN_STEP_PIN = 2;
 static constexpr uint PAN_DIR_PIN = 3;
 static constexpr uint PAN_ENABLE_PIN = 4;
 
-static constexpr uint TILT_STEP_PIN = 5;
-static constexpr uint TILT_DIR_PIN = 6;
-static constexpr uint TILT_ENABLE_PIN = 7;
-
-const uint UART_TX_PIN = 0;
-const uint UART_RX_PIN = 1;
-const uint BAUD_RATE = 115200;
-
-static constexpr float A4988_TEST_SWEEP_DEG = 45.0f;
-static constexpr uint32_t A4988_TEST_STEP_PERIOD_US = 700;
-static constexpr uint32_t A4988_TEST_SETTLE_MS = 500;
 static constexpr float A4988_TEST_ONE_REV_DEG = 360.0f;
 
 static constexpr A4988StepperConfig PAN_CONFIG {
-    .full_steps_per_revolution = 4640.0f,
-    .microstep_divider = 16.0f,
-    .gear_ratio = 232.0f,
-    .direction_inverted = false,
-    .enable_active_low = true,
-    .step_high_time_us = 3,
-    .min_step_period_us = 700,
-    .dir_setup_time_us = 3,
-    .dir_hold_time_us = 3,
-    .min_position_degrees = -180.0f,
-    .max_position_degrees = 180.0f,
-};
-
-static constexpr A4988StepperConfig TILT_CONFIG {
     .full_steps_per_revolution = 200.0f,
     .microstep_divider = 16.0f,
     .gear_ratio = 1.0f,
@@ -46,10 +17,8 @@ static constexpr A4988StepperConfig TILT_CONFIG {
     .enable_active_low = true,
     .step_high_time_us = 3,
     .min_step_period_us = 700,
-    .dir_setup_time_us = 3,
-    .dir_hold_time_us = 3,
-    .min_position_degrees = -90.0f,
-    .max_position_degrees = 90.0f,
+    .min_position_degrees = -360.0f,
+    .max_position_degrees = 360.0f,
 };
 
 static void log_stepper_state(const char* axis_name, const A4988Stepper& stepper)
@@ -64,26 +33,14 @@ static void log_stepper_state(const char* axis_name, const A4988Stepper& stepper
            stepper.config().max_position_degrees);
 }
 
-static void run_a4988_axis_test(const char* axis_name,
-                                A4988Stepper& stepper,
-                                float sweep_degrees,
-                                uint32_t step_period_us)
-{
-    printf("%s continuous one-direction test start: step=%.3f deg step_period=%lu us\n",
-           axis_name,
-           sweep_degrees,
-           static_cast<unsigned long>(step_period_us));
-    log_stepper_state(axis_name, stepper);
-}
-
-static void run_a4988_driver_test(A4988Stepper& pan)
+static void run_a4988_driver_test(A4988Stepper& stepper)
 {
     printf("=== A4988 driver test start ===\n");
-    printf("This test rotates PAN by one full revolution and stops.\n");
-    run_a4988_axis_test("PAN", pan, A4988_TEST_ONE_REV_DEG, A4988_TEST_STEP_PERIOD_US);
+    printf("This test rotates PAN by one full revolution and then idles.\n");
+    log_stepper_state("PAN", stepper);
 
-    pan.move_relative_degrees_unclamped(A4988_TEST_ONE_REV_DEG, A4988_TEST_STEP_PERIOD_US);
-    log_stepper_state("PAN", pan);
+    stepper.move_relative_degrees(A4988_TEST_ONE_REV_DEG);
+    log_stepper_state("PAN", stepper);
 
     while (true) {
         sleep_ms(1000);
@@ -93,47 +50,18 @@ static void run_a4988_driver_test(A4988Stepper& pan)
 int main()
 {
     stdio_init_all();
-
-    uart_init(uart0, BAUD_RATE);
-    gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
     
     A4988Stepper pan(PAN_STEP_PIN, PAN_DIR_PIN, PAN_ENABLE_PIN, PAN_CONFIG);
-    A4988Stepper tilt(TILT_STEP_PIN, TILT_DIR_PIN, TILT_ENABLE_PIN, TILT_CONFIG);
 
     pan.init();
-    tilt.init();
     pan.enable();
-    tilt.enable();
 
-    Ruckig<2> otg(0.01); // 10 ms control cycle
-    InputParameter<2> input;
-    OutputParameter<2> output;
-
-    // Degrees-based planning.
-    input.current_position = {0.0, 0.0};
-    input.current_velocity = {0.0, 0.0};
-    input.current_acceleration = {0.0, 0.0};
-
-    input.target_position = {90.0, -45.0};
-    input.target_velocity = {0.0, 0.0};
-    input.target_acceleration = {0.0, 0.0};
-
-    input.max_velocity = {180.0, 180.0};     // deg/s
-    input.max_acceleration = {360.0, 360.0}; // deg/s^2
-    input.max_jerk = {1000.0, 1000.0};       // deg/s^3
-
-    printf("Ruckig + A4988 test start\n");
+    printf("A4988 stepper driver test start\n");
     printf("PAN pins: STEP=%u DIR=%u EN=%u\n", PAN_STEP_PIN, PAN_DIR_PIN, PAN_ENABLE_PIN);
-    printf("TILT pins: STEP=%u DIR=%u EN=%u\n", TILT_STEP_PIN, TILT_DIR_PIN, TILT_ENABLE_PIN);
-    printf("Step angle: PAN=%.4f deg/step  TILT=%.4f deg/step\n",
-           pan.step_angle_degrees(),
-           tilt.step_angle_degrees());
-    printf("Step timing: pulse=%lu us min_period=%lu us dir_setup=%lu us dir_hold=%lu us\n",
+    printf("Step angle: PAN=%.4f deg/step\n", pan.step_angle_degrees());
+    printf("Step timing: pulse=%lu us min_period=%lu us\n",
            static_cast<unsigned long>(pan.config().step_high_time_us),
-           static_cast<unsigned long>(pan.config().min_step_period_us),
-           static_cast<unsigned long>(pan.config().dir_setup_time_us),
-           static_cast<unsigned long>(pan.config().dir_hold_time_us));
+           static_cast<unsigned long>(pan.config().min_step_period_us));
 
     run_a4988_driver_test(pan);
 }
